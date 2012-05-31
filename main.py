@@ -25,7 +25,7 @@ resolve_path = '/elab/_scripts/'
 re_find_deps = re.compile(r'(define|require)\s*\(\s*\[([^\]]*)\]', re.DOTALL | re.MULTILINE)
 nodes = dict()
 
-class NamedModule:
+class ModuleNode:
 	def __init__(self, name, content, match):
 		self.name, self.content, self.match = name, content, match				
 		self.deps = set()
@@ -38,15 +38,18 @@ class NamedModule:
 		if(node in self.deps): self.deps.remove(node)
 	def render(self):
 		start, end = self.match.start(), self.match.end()			
-		return self._debug_str() + '{}{}({}[{}]{}'.format(self.content[0:start], self.match.group(1), self.name and self.match.group(1) == 'define' and ('"'+self.name + '",') or '', 
-			self.match.group(2), self.content[end:])			
+		return self._debug_str() + '{0}{1}({2}[{3}]{4}'.format(self.content[0:start], 
+				self.match.group(1), 
+				('"' + self.name + '",') if self.name and self.match.group(1) == 'define' else '', 
+				self.match.group(2), 
+				self.content[end:])			
 	def _debug_str(self):
 		str = '/*debug{ name: ' + self.name
 		if(self._deps):
 			str += ', dependencies: ' + '|'.join([dep.name for dep in self._deps])		
 		return str + ' }*/\n'
 
-class DefaultModule:
+class InternalNode:
 	def __init__(self, name, content):
 		self.name, self.content = name, content
 		nodes[name] = self
@@ -54,7 +57,7 @@ class DefaultModule:
 	def render(self):
 		return '/*debug{ name: ' + self.name + ' }*/\ndefine("' + self.name + '");\n' + self.content
 
-class NullModule:
+class NullNode:
 	def __init__(self, name):
 		self.name = name
 		self.deps = None
@@ -62,10 +65,10 @@ class NullModule:
 	def render(self):
 		return ''
 
-class ExternalModule(NullModule):
+class ExternalNode(NullNode):
 	pass
 
-class PredefinedModule(NullModule):
+class PredefinedNode(NullNode):
 	pass
 
 def file_exists(path):
@@ -84,7 +87,8 @@ def create_entry(name):
 			n = create_entry(name[len(resolve_path):])
 			n.name = name
 			return n
-		return ExternalModule(name)
+		else
+			return ExternalNode(name)
 		
 	if(name.count('!')):
 		pre, nm = name.split('!')
@@ -92,7 +96,7 @@ def create_entry(name):
 			n = create_entry(nm)
 			n.name = name
 			return n
-		return NullModule(name)
+		return NullNode(name)
 
 	path = name	
 	if(not file_exists(path)):		
@@ -104,14 +108,14 @@ def create_entry(name):
 	if(not path.endswith('.js')):
 		path = path + '.js'		
 	if(not file_exists(path)):
-		return NullModule(name)
+		return NullNode(name)
 	
 	content = load_file(path)	
 	match = re_find_deps.search(content)
 	if(not match):		
-		return DefaultModule(name, content)
+		return InternalNode(name, content)
 	
-	entry = NamedModule(name, content, match)
+	entry = ModuleNode(name, content, match)
 	for dep in match.group(2).split(','):
 		dep = dep.strip()[1:-1].strip()		
 		entry.add_dep(create_entry(dep))
@@ -119,7 +123,7 @@ def create_entry(name):
 	return entry
 
 for name in predefined:
-	PredefinedModule(name)
+	PredefinedNode(name)
 
 create_entry(source)
 
