@@ -127,7 +127,7 @@ for name in predefined:
 
 create_entry(source)
 
-while len(nodes):
+while nodes:
 	rm = []
 	for k in nodes:
 		n = nodes[k]
