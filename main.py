@@ -25,7 +25,13 @@ resolve_path = '/elab/_scripts/'
 re_find_deps = re.compile(r'(define|require)\s*\(\s*\[([^\]]*)\]', re.DOTALL | re.MULTILINE)
 nodes = dict()
 
-class ModuleNode:
+class NodeBase:
+	def remove_dep(self, node):
+		pass
+	def render(self):
+		return ''
+
+class ModuleNode(NodeBase):
 	def __init__(self, name, content, match):
 		self.name, self.content, self.match = name, content, match				
 		self.deps = set()
@@ -49,7 +55,7 @@ class ModuleNode:
 			str += ', dependencies: ' + '|'.join([dep.name for dep in self._deps])		
 		return str + ' }*/\n'
 
-class InternalNode:
+class InternalNode(NodeBase):
 	def __init__(self, name, content):
 		self.name, self.content = name, content
 		nodes[name] = self
@@ -57,7 +63,7 @@ class InternalNode:
 	def render(self):
 		return '/*debug{ name: ' + self.name + ' }*/\ndefine("' + self.name + '");\n' + self.content
 
-class NullNode:
+class NullNode(NodeBase):
 	def __init__(self, name):
 		self.name = name
 		self.deps = None
@@ -78,13 +84,13 @@ def load_file(path):
 	with open(os.path.join(root, path), 'r') as file:
 		return file.read()
 
-def create_entry(name):	
+def create_node(name):	
 	if(nodes.has_key(name)):
 		return nodes[name]
 		
 	if(name.startswith('/')):		
 		if(name.startswith(resolve_path)):
-			n = create_entry(name[len(resolve_path):])
+			n = create_node(name[len(resolve_path):])
 			n.name = name
 			return n
 		else
@@ -93,7 +99,7 @@ def create_entry(name):
 	if(name.count('!')):
 		pre, nm = name.split('!')
 		if(pre == 'order'):
-			n = create_entry(nm)
+			n = create_node(nm)
 			n.name = name
 			return n
 		return NullNode(name)
@@ -102,7 +108,7 @@ def create_entry(name):
 	if(not file_exists(path)):		
 		n = name.split(r'/')[0]		
 		if(alias.has_key(n)):
-			n = create_entry(alias[n] + name[len(n):])
+			n = create_node(alias[n] + name[len(n):])
 			n.name = name
 			return n
 	if(not path.endswith('.js')):
@@ -118,14 +124,14 @@ def create_entry(name):
 	entry = ModuleNode(name, content, match)
 	for dep in match.group(2).split(','):
 		dep = dep.strip()[1:-1].strip()		
-		entry.add_dep(create_entry(dep))
+		entry.add_dep(create_node(dep))
 
 	return entry
 
 for name in predefined:
 	PredefinedNode(name)
 
-create_entry(source)
+create_node(source)
 
 while nodes:
 	rm = []
@@ -137,4 +143,4 @@ while nodes:
 	for k in rm:
 		n = nodes.pop(k)
 		for v in nodes.values():
-			v.deps and v.remove_dep(n)
+			v.remove_dep(n)
