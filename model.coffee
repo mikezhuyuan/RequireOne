@@ -25,7 +25,11 @@ class Nodes
     assert (node instanceof Node), 'Must be a Node'
     @nodes[node.name]=node
   all: -> node for name,node of @nodes
-  create: (args...) -> @add new Node args...
+  create: (name) -> 
+    if name of @nodes
+      @nodes[name]
+    else
+      @add new Node name
   find: (name) -> return @nodes[name]
   roots: -> node for name,node of nodes when node.isRoot()
   clone: ->

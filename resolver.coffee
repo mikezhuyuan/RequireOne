@@ -7,10 +7,12 @@ class PathResolver
       if v[0] is '/'
         @path_map[k] = map_path v, @path_map
   path: (name) ->
-    if name in @ignores then return
+    if name in @ignores 
+      return
     path.join @base, map_path(name, @path_map)
   read: (name) ->
     file_path = @path name
+    if not file_path then return
     if not endswith file_path, '.js'
       file_path += '.js'
     fs.readFileSync file_path, 'utf8' if file_path and path.existsSync file_path
